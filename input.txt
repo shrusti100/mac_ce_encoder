@@ -1,6 +1,6 @@
-Total pdu_size -30
+Total pdu_size 30
+num_ce 2
 <enhanced_bfr>
-
 ci=5
 s=3
 ac=1
