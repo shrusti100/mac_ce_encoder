@@ -5,35 +5,31 @@ This file defines:
 ->Total MAC PDU size
 ->Number of MAC Control Elements (CEs) to encode
 ->CE blocks with parameters
-The program parses the file line-by-line and encodes only the specified number of CEs
  
 ## File Structure
 The input file consists of:
-1. "Global parameters"
-2. "Number of Control Elements"
-3. Repeated CE blocks"
+1. Global parameters
+2. Number of Control Elements
+3. Repeated CE blocks
  
 ## 1. Global Parameters
 These must appear at the top of the file.
  
-### "Total pdu_size"
+### Total pdu_size
 Defines the total size of the MAC PDU (in bytes)
 -------------------
----text---
-Total pdu_size <integer>
+Total pdu_size value
 -------------------
  
-### "num_ce"
+### num_ce
 Number of Control Elements defined in the file
 ----------------
----text---
-num_ce <integer>
+num_ce value
 ----------------
  
 ## 2. Control Element Blocks
 Each Control Element is defined using the following structure:
 --------------
----text---
  
 <ce_name>
 parameter=value
@@ -46,100 +42,81 @@ Below are the supported CE types and their required parameters.
  
 ### SHORT_BSR
  
----text---
- 
 <short_bsr>
-lcgid=<integer>
-buffer=<integer>
+lcgid=value
+buffer=value
  
 ----------------------------------------------------------------------
  
 ### PHR (Power Headroom Report)
  
----text---
- 
 <phr>
-ph=<integer>
-pcmax=<integer>
+ph=value
+pcmax=value
  
 ----------------------------------------------------------------------
  
 ### ENH_PHR (Enhanced PHR)
  
----text---
- 
 <enh_phr>
-ph=<integer>
-pcmax=<integer>
+ph=value
+pcmax=value
  
 ---------------------------------------------------------------------
  
 ### ENH_BFR (Enhanced Beam Failure Recovery)
  
----text---
- 
 <enhanced_bfr>
-ci=<integer>
-s=<integer>
-ac=<integer>
-id=<integer>
-candidate_id=<integer>
+ci=value
+s=value
+ac=value
+id=value
+candidate_id=value
  
 ---------------------------------------------------------------------
  
 ### CRNTI
  
----text---
- 
 <crnti>
-value=<integer>
+value=value
  
 ---------------------------------------------------------------------
  
 ### REC_BIT_RATE
  
----text---
- 
 <rec_bit_rate>
-lcid=<integer>
-bit_rate=<integer>
-ui_dl_=<0 or 1>
+lcid=value
+bit_rate=value
+ui_dl_=0 or 1
  
 ---------------------------------------------------------------------
  
 ### EXT_BSR
  
----text---
- 
 <extended_bsr>
-lcg<integer>
-buffer<integer>
+lcg=value
+buffer=value
  
 -----------------------------------------------------------------------
  
 ### SL_LBT
  
----text---
- 
 <sl_lbt>
-value=<integer>
+value=value
  
 -----------------------------------------------------------------------
  
 ### DSR
  
----text---
- 
 <dsr>
-lcg=<integer>
-rt=<integer>
-buffer=<integer>
+lcg=value
+rt=value
+buffer=value
  
 -----------------------------------------------------------------------
  
 ## Example
  
----text---
 Total pdu_size 12
 num_ce 2
  
@@ -158,7 +135,6 @@ pcmax=5
 * CE must start with < >
 * Parameters use =
 * Order of parameters must match expected format
-* Only num_ce CEs are processed
  
 ------------------------------------------------------------------------
  
@@ -170,7 +146,7 @@ The program may produce errors if:
 * Unknown CE name
 * Missing parameters
 * Extra parameters
-* *n-integer values
+* non-numeric values
 * Values out of range
  
 -------------------------------------------------------------------------
