@@ -29,13 +29,12 @@ num_ce value
  
 ## 2. Control Element Blocks
 Each Control Element is defined using the following structure:
---------------
+
  
 <ce_name>
 parameter=value
 parameter=value
- 
---------------
+
  
 ## 3. Supported Control Elements
 Below are the supported CE types and their required parameters.
@@ -46,23 +45,17 @@ Below are the supported CE types and their required parameters.
 lcgid=value
 buffer=value
  
-----------------------------------------------------------------------
- 
 ### PHR (Power Headroom Report)
  
 <phr>
 ph=value
 pcmax=value
- 
-----------------------------------------------------------------------
- 
+
 ### ENH_PHR (Enhanced PHR)
  
 <enh_phr>
 ph=value
 pcmax=value
- 
----------------------------------------------------------------------
  
 ### ENH_BFR (Enhanced Beam Failure Recovery)
  
@@ -73,14 +66,10 @@ ac=value
 id=value
 candidate_id=value
  
----------------------------------------------------------------------
- 
 ### CRNTI
  
 <crnti>
 value=value
- 
----------------------------------------------------------------------
  
 ### REC_BIT_RATE
  
@@ -88,32 +77,24 @@ value=value
 lcid=value
 bit_rate=value
 ui_dl_=0 or 1
- 
----------------------------------------------------------------------
- 
+  
 ### EXT_BSR
  
 <extended_bsr>
 lcg=value
 buffer=value
  
------------------------------------------------------------------------
- 
 ### SL_LBT
  
 <sl_lbt>
 value=value
- 
------------------------------------------------------------------------
- 
+
 ### DSR
  
 <dsr>
 lcg=value
 rt=value
 buffer=value
- 
------------------------------------------------------------------------
  
 ## Example
  
@@ -128,15 +109,11 @@ buffer=12
 ph=23
 pcmax=5
  
------------------------------------------------------------------------
- 
 ## Parsing Rules
  
 * CE must start with < >
 * Parameters use =
 * Order of parameters must match expected format
- 
-------------------------------------------------------------------------
  
 ## Error Handling
 The program may produce errors if:
@@ -149,7 +126,7 @@ The program may produce errors if:
 * non-numeric values
 * Values out of range
  
--------------------------------------------------------------------------
+
  
  
  
