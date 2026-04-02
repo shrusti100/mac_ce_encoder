@@ -2,9 +2,9 @@
 The program reads input from a text file named input.txt.
  
 This file defines:
-->Total MAC PDU size
-->Number of MAC Control Elements (CEs) to encode
-->CE blocks with parameters
+Total MAC PDU size
+Number of MAC Control Elements (CEs) to encode
+CE blocks with parameters
 
  ## Compilation
 To compile the project, run:
