@@ -1,0 +1,5 @@
+Total pdu_size 30
+num_ce 1
+<short_bsr>
+buffer=9
+

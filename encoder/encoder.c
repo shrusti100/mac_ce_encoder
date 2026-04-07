@@ -3,14 +3,6 @@
 #include "input_validation.h"
 #include "encoder.h"
 
-#define MAX_LINE 100
-
-typedef struct
-{
-    int num_ce;
-    int ce_count;
-} EncoderState;
-
 /******************************************
  VALIDATION
 *******************************************/
@@ -25,13 +17,13 @@ int check_range(int val, int min, int max, const char *name)
 }
 
 /*******************************************************************
-* function: short_bsr
-********************************************************************
-*  Brief: MAC subPDU with 8-bit MAC subheader
-*  Subheader: R (2 BITS) LCID (6 BITS)
-*  Format: LCG ID (3 BITS) Buffer Size (5 BITS)
-*  Total MAC CE (2 BYTES)
-********************************************************************/
+ * function: short_bsr
+ *******************************************************************
+ *  Brief: MAC subPDU with 8-bit MAC subheader
+ *  Subheader: R (2 BITS) LCID (6 BITS)
+ *  Format: LCG ID (3 BITS) Buffer Size (5 BITS)
+ *  Total MAC CE (2 BYTES)
+ ********************************************************************/
 int short_bsr(uint8_t *pdu, int *offset, int argc, int lcg, int buffer)
 {
     if (argc < 2)
@@ -59,19 +51,19 @@ int short_bsr(uint8_t *pdu, int *offset, int argc, int lcg, int buffer)
     /*Octet:
      Bits [7:6] → LCG ID
      Bits [5:0] → Buffer Size*/
-
+    // subheader
     pdu[(*offset)++] = LCID_SHORT_BSR;
-    pdu[(*offset)++] = (lcg << 6) | buffer;
-
+    // payload
+    pdu[(*offset)++] = (lcg << 5) | buffer;
     return SUCCESS;
 }
 
 /**********************************************************
- *function:phr
+ function:phr
 ***********************************************************
 * Brief: MAC subPDU with: 8-bit MAC subheader
 * Subheader:R(2 BITS) LCID(6 BITS)
-* Format:Octet 1 -> P (1 BITS) R(1 BITS) PH (6 BITS)
+* Format:Octet 1 -> P (1 BIT) R(1 BIT) PH (6 BITS)
 *        Octet 2 -> R (2 BITS)  PCMACX (6 BITS)
 *        Total MAC CE (3 BYTES)
 ************************************************************/
@@ -123,8 +115,9 @@ int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags)
         return FAILURE;
     if (check_range(pcmax, 0, 63, "PCMAX"))
         return FAILURE;
-
+    // subheader
     pdu[(*offset)++] = LCID_PHR;
+    // payload
     pdu[(*offset)++] = (flags.P << 7) | (flags.R << 6) | (ph & 0x3F);
     pdu[(*offset)++] = (flags.MPE << 7) | (flags.R2 << 6) | (pcmax & 0x3F);
     return SUCCESS;
@@ -132,13 +125,13 @@ int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags)
 
 /*****************************************************
  *function:crnti
-********************************************************
-* Brief: MAC subPDU with: 8-bit MAC subheader
-* Subheader:R(2 BITS) LCID(6 BITS)
-* Format:Octet 1 ->CRNTI(8 BITS)
-*        Octet 2 -> CRNTI(8 BITS)
-* Total MAC CE (3 BYTES)
-********************************************************/
+ ********************************************************
+ * Brief: MAC subPDU with: 8-bit MAC subheader
+ * Subheader:R(2 BITS) LCID(6 BITS)
+ * Format:Octet 1 ->CRNTI(8 BITS)
+ *        Octet 2 -> CRNTI(8 BITS)
+ * Total MAC CE (3 BYTES)
+ ********************************************************/
 int crnti(uint8_t *pdu, int *offset, int argc, int value)
 {
     if (argc == 0)
@@ -171,8 +164,9 @@ int crnti(uint8_t *pdu, int *offset, int argc, int value)
         return FAILURE;
     }
 
-    // ENCODING
+    // subheader
     pdu[(*offset)++] = LCID_CRNTI;
+    // payload
     pdu[(*offset)++] = (value >> 8) & 0xFF;
     pdu[(*offset)++] = value & 0xFF;
     return SUCCESS;
@@ -180,16 +174,16 @@ int crnti(uint8_t *pdu, int *offset, int argc, int value)
 
 /*********************************************************
  *function:dsr
-***********************************************************
+**********************************************************
 * Brief: MAC subPDU with 16-bit MAC subheader (Extended LCID)
 * Subheader:Octet 1 → R (1 BITS)| R (1 BITS) | LCID (6 BITS)
             Octet 2 → eLCID(8 BITS)= 228 (DSR)
 * Format:   Octet 1 → LCG bitmap (which LCGs are present)
-*           Octet →  BT (1 BIT) R (1 BIT)  Remaining Time (6 BITS) 
+*           Octet →  BT (1 BIT) R (1 BIT)  Remaining Time (6 BITS)
 *           Octet → Buffer Size (8 BITS)
-* Total MAC CE (5 BYTES) 
+* Total MAC CE (5 BYTES)
 **************************************************************/
-int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
+int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags, EncoderState state)
 {
     if (argc < 3)
     {
@@ -218,13 +212,15 @@ int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
         if (check_range(lcg, 0, 7, "LCG"))
             return FAILURE;
 
-        lcg_bitmap |= (1 << lcg);
+        state.lcg_bitmap |= (1 << lcg);
     }
 
-    // -------- ENCODING --------
-    pdu[(*offset)++] = (0 << 7) | (0 << 6) | 0x3F; // LCID for extended
-    pdu[(*offset)++] = 228;                        // eLCID for DSR
-    pdu[(*offset)++] = lcg_bitmap;
+    // subheader
+    pdu[(*offset)++] = (0 << 7) | (0 << 6) |  LCID_EXT_1BYTE  ; // Extended LCID (1 octet)
+    pdu[(*offset)++] = eLCID_DSR;                 // eLCID
+
+    // payload
+    pdu[(*offset)++] = state.lcg_bitmap;
     for (int i = 0; i < entries; i++)
     {
         int lcg = params[i * 3];
@@ -306,9 +302,9 @@ int rec_bit_rate(uint8_t *pdu, int *offset, int argc, int lcid, int rate, int ul
     if (check_range(ul_dl, 0, 1, "UL/DL"))
         return FAILURE;
 
-    // -------- ENCODING --------
-
+    // subheader
     pdu[(*offset)++] = LCID_REC_BIT_RATE;
+    // payload
     pdu[(*offset)++] = (lcid << 2) | (ul_dl << 1) | flags.R;
     pdu[(*offset)++] = (rate << 2) | (flags.X << 1) | flags.R2;
 
@@ -342,10 +338,10 @@ int enhanced_phr(uint8_t *pdu, int *offset, int argc, int *params)
 
     int entries = argc / 2;
 
-    // -------- ENCODING --------
-    pdu[(*offset)++] = (0 << 7) | (0 << 6) | 0x3F;
-    pdu[(*offset)++] = 221;
-
+    // subheader
+    pdu[(*offset)++] = (0 << 7) | (0 << 6) |  LCID_EXT_1BYTE  ; // Extended LCID (1 octet)
+    pdu[(*offset)++] = eLCID_ENH_PHR;
+    // payload
     for (int i = 0; i < entries; i++)
     {
         int ph = params[i * 2];
@@ -375,7 +371,6 @@ int enhanced_phr(uint8_t *pdu, int *offset, int argc, int *params)
         pdu[(*offset)++] = (1 << 7) | (0 << 6) | (ph & 0x3F);
         pdu[(*offset)++] = (1 << 7) | (0 << 6) | (pcmax & 0x3F);
     }
-
     return SUCCESS;
 }
 
@@ -403,10 +398,11 @@ int sl_lbt(uint8_t *pdu, int *offset, int value)
     }
     if (check_range(value, 0, 31, "SL-LBT"))
         return FAILURE;
-    pdu[(*offset)++] = (0 << 7) | (0 << 6) | 0x3F;
-    pdu[(*offset)++] = 222;
+    // subheader
+    pdu[(*offset)++] = (0 << 7) | (0 << 6) |  LCID_EXT_1BYTE  ; // Extended LCID (1 octet)
+    pdu[(*offset)++] = eLCID_SL_LBT;
+    // payload
     pdu[(*offset)++] = value & 0x1F;
-
     return SUCCESS;
 }
 
@@ -451,10 +447,10 @@ int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
     if (check_range(s, 0, 255, "S"))
         return FAILURE;
 
-    pdu[(*offset)++] = (0 << 7) | (0 << 6) | 0x3F;
-    pdu[(*offset)++] = 235;
-
-    // CI & S
+    // subheader
+    pdu[(*offset)++] = (0 << 7) | (0 << 6) |  LCID_EXT_1BYTE  ; // Extended LCID (1 octet)
+    pdu[(*offset)++] = eLCID_ENH_BFR;
+   // payload
     pdu[(*offset)++] = ci;
     pdu[(*offset)++] = s;
 
@@ -479,7 +475,6 @@ int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
 
         pdu[(*offset)++] = (ac << 7) | (id << 6) | (cid & 0x3F);
     }
-
     return SUCCESS;
 }
 
@@ -489,8 +484,8 @@ function: extended_bsr
 * MAC subPDU with: 16-bit MAC subheader (Extended LCID)
 * Subheader: Octet 1 → R(2 BITS) LCID(6 BIT)
              Octet 2 → eLCID = 245 (EXTENDED_BSR)
-* Format:    Octet 1 -> LCG ID (8 BITS) 
-             Octet 2 ->Buffer Size (8 BITS) 
+* Format:    Octet 1 -> LCG ID (8 BITS)
+             Octet 2 ->Buffer Size (8 BITS)
 * Total MAC CE  (4 BYTES)
 ***************************************************************/
 int extended_bsr(uint8_t *pdu, int *offset, int lcg, int buffer)
@@ -512,15 +507,16 @@ int extended_bsr(uint8_t *pdu, int *offset, int lcg, int buffer)
     if (check_range(buffer, 0, 255, "BUFFER"))
         return FAILURE;
 
-    pdu[(*offset)++] = (0 << 7) | (0 << 6) | 0x3F;
-    pdu[(*offset)++] = 245;
+    // subheader
+    pdu[(*offset)++] = (0 << 7) | (0 << 6) |  LCID_EXT_1BYTE  ; // Extended LCID (1 octet)
+    pdu[(*offset)++] = eLCID_EXT_BSR;
+    // payload
     pdu[(*offset)++] = lcg & 0x07;
     pdu[(*offset)++] = buffer & 0xFF;
-
     return SUCCESS;
 }
 
-/******************************************* 
+/*********************************************
  PRINT HEX
 **********************************************/
 void print_hex(uint8_t *data, int len)
@@ -529,7 +525,7 @@ void print_hex(uint8_t *data, int len)
         printf("%02X ", data[i]);
 }
 
-/******************************************** 
+/********************************************
  PRINT BITS
 **********************************************/
 void print_bits(uint8_t *data, int len)
@@ -579,7 +575,7 @@ int get_ce_id(char *type)
     return -1;
 }
 
-/******************************************* 
+/*******************************************
  PARSE AND ENCODE FUNCTION
 *********************************************
  Responsibilities:
@@ -641,7 +637,6 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                 printf("ERROR: More than one blank line between CEs\n");
                 return FAILURE;
             }
-
             continue;
         }
         else
@@ -687,7 +682,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                 fgets(line, sizeof(line), fp);
                 char *ptr = strchr(line, '=');
                 if (ptr == NULL || sscanf(ptr + 1, "%d", &a) != 1)
-                    valid_ce = 0;
+                valid_ce = 0;
                 param_count++;
 
                 // Read BUFFER
@@ -705,7 +700,6 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     }
                     fseek(fp, pos, SEEK_SET);
                 }
-
                 ret = short_bsr(pdu, &offset, param_count, a, b);
                 break;
             }
@@ -796,7 +790,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     params[count++] = val;
                 }
 
-                ret = dsr(pdu, &offset, count, params, flags);
+                ret = dsr(pdu, &offset, count, params, flags, state);
                 break;
             }
             case 6:
@@ -821,7 +815,6 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                         printf("ERROR: invalid enhanced_phr input\n\n");
                         return FAILURE;
                     }
-
                     params[count++] = val;
                 }
 
