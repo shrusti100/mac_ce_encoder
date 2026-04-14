@@ -2,10 +2,13 @@
 #include <stdint.h>
 #include "encoder.h"
 
-int main()
+int main(void)
 {
     uint8_t pdu[MAX_MAC_CE_SIZE] = {0};
     int pdu_size = 0;
-    parse_and_encode("input.txt", pdu, &pdu_size);
+
+    if (parse_and_encode("input.txt", pdu, &pdu_size) == FAILURE)
+        return 1;
+
     return 0;
 }
