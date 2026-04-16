@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include <limits.h>
 #include <ctype.h>
 #include "input_validation.h"
@@ -27,7 +28,7 @@ int check_range(int val, int min, int max, const char *name)
  * Format: LCG ID (3 BITS) Buffer Size (5 BITS)
  * Total MAC CE (2 BYTES)
  ***************************************************/
-int short_bsr(uint8_t *pdu, int *offset, int argc, int lcg, int buffer)
+int short_bsr(uint8_t *pdu, int *offset, int argc, uint8_t lcg, uint8_t buffer)
 {
     if (pdu == NULL || offset == NULL)
     {
@@ -45,14 +46,9 @@ int short_bsr(uint8_t *pdu, int *offset, int argc, int lcg, int buffer)
         return FAILURE;
     }
 
-    if (lcg < 0 || buffer < 0)
-    {
-        printf("ERROR: Invalid values\n");
-        return FAILURE;
-    }
-
     if (check_range(lcg, 0, 7, "LCG"))
         return FAILURE;
+
     if (check_range(buffer, 0, 31, "BUFFER"))
         return FAILURE;
 
@@ -214,13 +210,7 @@ int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
     uint8_t lcg_bitmap = 0;
     for (int i = 0; i < entries; i++)
     {
-        int lcg = params[i * 3];
-
-        if (lcg < 0)
-        {
-            printf("ERROR: LCG cannot be negative\n");
-            return FAILURE;
-        }
+        uint8_t lcg = params[i * 3];
 
         if (check_range(lcg, 0, 7, "LCG"))
             return FAILURE;
@@ -235,16 +225,9 @@ int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
     pdu[(*offset)++] = lcg_bitmap;
     for (int i = 0; i < entries; i++)
     {
-        int lcg = params[i * 3];
-        int rt = params[i * 3 + 1];
-        int buffer = params[i * 3 + 2];
-
-        // validation
-        if (rt < 0 || buffer < 0)
-        {
-            printf("ERROR: Negative values not allowed\n");
-            return FAILURE;
-        }
+        uint8_t lcg = params[i * 3];
+        uint8_t rt = params[i * 3 + 1];
+        uint8_t buffer = params[i * 3 + 2];
 
         if (check_range(rt, 0, 63, "RT"))
             return FAILURE;
@@ -508,7 +491,7 @@ int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
  * Format: LCG ID + Buffer size
  * Total MAC CE: Variable
  ***************************************************/
-int extended_short_truncated_bsr(uint8_t *pdu, int *offset, int lcg, int buffer)
+int extended_short_truncated_bsr(uint8_t *pdu, int *offset, uint8_t lcg, uint8_t buffer)
 {
     if (pdu == NULL || offset == NULL)
     {
@@ -518,12 +501,6 @@ int extended_short_truncated_bsr(uint8_t *pdu, int *offset, int lcg, int buffer)
     if (lcg == -1 || buffer == -1)
     {
         printf("ERROR: extended_short_truncated_bsr missing parameters (LCG BUFFER)\n");
-        return FAILURE;
-    }
-    // -------- NEGATIVE CHECK --------
-    if (lcg < 0 || buffer < 0)
-    {
-        printf("ERROR: extended_short_truncated_bsr values cannot be negative\n");
         return FAILURE;
     }
     // -------- RANGE CHECK --------
