@@ -1,16 +1,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
+#include <ctype.h>
 #include "input_validation.h"
 #include "encoder.h"
 
 #define MAX_LINE 100
-
-typedef struct
-{
-    int num_ce;
-    int ce_count;
-} EncoderState;
 
 /*----------------------------------
  VALIDATION
@@ -25,17 +20,13 @@ int check_range(int val, int min, int max, const char *name)
     return SUCCESS;
 }
 
-/*----------------------------------
-SHORT BSR
-------------------------------------
-MAC subPDU with:
-    - 8-bit MAC subheader
-Subheader:
-    R (1 BITS) | R(1 BITS) | LCID (6 BITS)
-FORMAT:
-    | LCG ID (3 BITS) | Buffer Size (5 BITS) |
-Total MAC CE (2 BYTES)
--------------------------------------*/
+/*************************************************
+ * function: short_bsr
+ * Brief: MAC subPDU with 8-bit MAC subheader
+ * Subheader: R (2 BITS) LCID (6 BITS)
+ * Format: LCG ID (3 BITS) Buffer Size (5 BITS)
+ * Total MAC CE (2 BYTES)
+ ***************************************************/
 int short_bsr(uint8_t *pdu, int *offset, int argc, int lcg, int buffer)
 {
     if (pdu == NULL || offset == NULL)
@@ -75,18 +66,13 @@ int short_bsr(uint8_t *pdu, int *offset, int argc, int lcg, int buffer)
     return SUCCESS;
 }
 
-/*-------------------------------
- PHR
-----------------------------------
-MAC subPDU with:
-    - 8-bit MAC subheader
-Subheader:
-    R(1 BITS) | R(1 BITS) | LCID(6 BITS)
-FORMAT:
-    Octet 1 ->| P (1 BITS) | R(1 BITS)| PH (6 BITS)|
-    Octet 2 -> |R (2 BITS) | PCMACX (6 BITS)|
-Total MAC CE (3 BYTES)
--------------------------------------*/
+/*************************************************
+ * function: phr
+ * Brief: Power Headroom Report MAC CE
+ * Subheader: R (2 BITS) LCID (6 BITS)
+ * Format: PH (6 BITS) PCMAX (2 BITS) + Flags
+ * Total MAC CE: Variable
+ ***************************************************/
 int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags)
 {
     if (pdu == NULL || offset == NULL)
@@ -147,18 +133,13 @@ int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags)
     return SUCCESS;
 }
 
-/*---------------------------------
-CRNTI
------------------------------------
-MAC subPDU with:
-    - 8-bit MAC subheader (LCID = 6 bits , R =2 bits)
-Subheader:
-    R(1 BITS) | R(1 BITS) | LCID(6 BITS)
-FORMAT:
-    Octet 1 -> C-RNTI (8 BITS)
-    Octet 2 -> C-RNTI (8 BITS)
-Total MAC CE payload (3 BYTES)
---------------------------------------*/
+/*************************************************
+ * function: crnti
+ * Brief: C-RNTI MAC CE
+ * Subheader: R (2 BITS) LCID (6 BITS)
+ * Format: C-RNTI (16 BITS)
+ * Total MAC CE (3 BYTES)
+ ***************************************************/
 int crnti(uint8_t *pdu, int *offset, int argc, int value)
 {
     if (pdu == NULL || offset == NULL)
@@ -203,21 +184,13 @@ int crnti(uint8_t *pdu, int *offset, int argc, int value)
     return SUCCESS;
 }
 
-/*--------------------------------------------
-DELAY STATUS REPORT (DSR)
-----------------------------------------------
-MAC subPDU with:
-    - 16-bit MAC subheader (Extended LCID)
-Subheader:
-    Octet 1 → R (1 BITS)| R (1 BITS) | LCID (6 BITS)
-    Octet 2 → eLCID(8 BITS)= 228 (DSR)
-FORMAT:
-    Octet 1 → LCG bitmap (which LCGs are present)
-    Then for each entry:
-    Octet → | BT (1 BITS) | R (1 BITS) | Remaining Time (6 BITS) |
-    Octet → Buffer Size (8 BITS)
-MAC CE payload (3 BYTES) VARIABLE LENGTH
----------------------------------------------*/
+/*************************************************
+ * function: dsr
+ * Brief: Delay Status Report MAC CE
+ * Subheader: Extended LCID
+ * Format: Delay parameters
+ * Total MAC CE: Variable
+ ***************************************************/
 int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
 {
     if (pdu == NULL || offset == NULL)
@@ -284,18 +257,13 @@ int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
     return SUCCESS;
 }
 
-/*------------------------------------
-RECOMMENDED BIT RATE QUERY
--------------------------------------
-MAC subPDU with:
-    - 8-bit MAC subheader (LCID = 6 bits , R =2 bits)
-Subheader:
-    R(1 BITS) | R(1 BITS) | LCID(6 BITS)
-FORMAT:
-    |Octet 1 -> | lcid (6 BITS) |UL/DL (1 BITS) | BIT RATE (1 BITS)
-    |Octet 2 -> | BIT RATE (5 BITS) | X(1 BITS) | R (2 BITS)
-Total MAC CE payload (3 BYTES)
------------------------------------------*/
+/*************************************************
+ * function: rec_bit_rate
+ * Brief: Recommended Bit Rate MAC CE
+ * Subheader: R (2 BITS) LCID (6 BITS)
+ * Format: Bit rate fields + Flags
+ * Total MAC CE: Variable
+ ***************************************************/
 int rec_bit_rate(uint8_t *pdu, int *offset, int argc, int lcid, int rate, int ul_dl, Flags flags)
 {
     if (pdu == NULL || offset == NULL)
@@ -358,21 +326,13 @@ int rec_bit_rate(uint8_t *pdu, int *offset, int argc, int lcid, int rate, int ul
     return SUCCESS;
 }
 
-/*----------------------------------
-ENHANCED SINGLE ENTRY PHR MULTIPLE TRP STX2P
-
-----------------------------------
-MAC subPDU with:
-    - 16-bit MAC subheader (Extended LCID)
-Subheader:
-    Octet 1 → R(1 BITS) | R(1 BITS) | LCID(6 BITS)
-    Octet 2 → eLCID (8 BITS)= 221 (ENH_PHR)
-FORMAT:
-    Octet 1 → P(0/1) | V(0/1) | PH1 (6 BIT)
-    Octet 2 → R(0/1) | V(0/1) | PH2 (6 BIT)
-    Octet 3 → R(0/) 2 BIT | PCMAAX (6 BIT)
-Total MAC CE payload (5 BYTES)
-----------------------------------*/
+/*************************************************
+ * function: enhanced_single_entry_phr_multiple_trp_stx2p
+ * Brief: Enhanced Single Entry PHR MAC CE (Multiple TRP)
+ * Subheader: Extended LCID
+ * Format: PHR fields for multiple TRP
+ * Total MAC CE: Variable
+ ***************************************************/
 /* NOTE: verify payload layout against the exact Rel-18 STx2P PHR figure/table before final use */
 
 int enhanced_single_entry_phr_multiple_trp_stx2p(uint8_t *pdu, int *offset, int argc, int *params)
@@ -384,7 +344,7 @@ int enhanced_single_entry_phr_multiple_trp_stx2p(uint8_t *pdu, int *offset, int 
     }
     if (argc < 2)
     {
-        printf("ERROR: enhanced_single_entry_phr_multiple_trp_stx2p(needs at least one TRP pair (PH PCMAX)\n");
+        printf("ERROR: enhanced_single_entry_phr_multiple_trp_stx2p (needs at least one TRP pair (PH PCMAX))\n");
         return FAILURE;
     }
 
@@ -433,20 +393,13 @@ int enhanced_single_entry_phr_multiple_trp_stx2p(uint8_t *pdu, int *offset, int 
 
     return SUCCESS;
 }
-
-/*----------------------------------
- SL LBT FAILURE
-----------------------------------
-MAC subPDU with:
-    16-bit MAC subheader (Extended LCID)
-Subheader:
-    Octet 1 → R91 BITS) | R(1 BITS) | LCID(6 BITS)
-    Octet 2 → eLCID(8 BITS)= 222 (SL-LBT)
-FORMAT:
-    Octet 1 -> | R R R R4 R3 R2 R1 R0 |
-    R(3 BIT) (0/1) | R4-R0 (5 BIT)
-Total MAC CE (3 BYTES)
-----------------------------------*/
+/***************************************************
+ * function: sl_lbt
+ * Brief: Sidelink LBT MAC CE
+ * Subheader: Extended LCID
+ * Format: LBT parameters
+ * Total MAC CE: Variable
+ ***************************************************/
 int sl_lbt(uint8_t *pdu, int *offset, int value)
 {
     if (pdu == NULL || offset == NULL)
@@ -461,7 +414,7 @@ int sl_lbt(uint8_t *pdu, int *offset, int value)
     }
     if (value < 0)
     {
-        printf("ERROR:SL-LBT cannot be negative\n");
+        printf("ERROR: SL-LBT cannot be negative\n");
         return FAILURE;
     }
     if (check_range(value, 0, 31, "SL-LBT"))
@@ -474,22 +427,13 @@ int sl_lbt(uint8_t *pdu, int *offset, int value)
     return SUCCESS;
 }
 
-/*----------------------------------
- ENHANCED BFR
-------------------------------------
-MAC subPDU with:
-    16-bit MAC subheader (Extended LCID)
-Subheader:
-    Octet 1 → R(1 BITS) | R(1 BITS) | LCID(6 BITS)
-    Octet 2 → eLCID = 235 (ENH_BFR)
-FORMAT:
-    Octet 1 -> |C7 C6 C5 C4 C3 C2 C1 SP|
-    Octet 2 -> |S7 S6 S5 S4S S3 S2 S1 S0 |(8 BIT)
-    Octet 3 ->  |AC(0/1) | ID(0/1) | CANDIDATE OR R BITS(6 BIT)|
-Total MAC CE(5 BYTES) VARIABLE LENGTH
- ---------------------------------------*/
-/* NOTE: simplified implementation; not fully aligned with TS 38.321 Rel-18 Enhanced BFR format */
-
+/*************************************************
+ * function: enhanced_bfr
+ * Brief: Enhanced Beam Failure Recovery MAC CE
+ * Subheader: Extended LCID
+ * Format: BFR parameters
+ * Total MAC CE: Variable
+ ***************************************************/
 int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
 {
     if (pdu == NULL || offset == NULL)
@@ -557,19 +501,13 @@ int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
     return SUCCESS;
 }
 
-/*----------------------------------
- EXTENDED SHORT TRUNCATED BSR
-----------------------------------
-MAC subPDU with:
-    16-bit MAC subheader (Extended LCID)
-Subheader:
-     Octet 1 → R(1 BIT) | R(1 BIT) | LCID(6 BIT)
-    Octet 2 → eLCID = 245 (EXTENDED_BSR)
-FORMAT:
-    Octet 1 ->| LCG ID (8 BITS) |
-    Octet 2 ->|Buffer Size (8 BITS) |
-Total MAC CE  (4 BYTES)
- -----------------------------------*/
+/*************************************************
+ * function: extended_short_truncated_bsr
+ * Brief: Extended Short Truncated BSR MAC CE
+ * Subheader: Extended LCID
+ * Format: LCG ID + Buffer size
+ * Total MAC CE: Variable
+ ***************************************************/
 int extended_short_truncated_bsr(uint8_t *pdu, int *offset, int lcg, int buffer)
 {
     if (pdu == NULL || offset == NULL)
@@ -626,7 +564,7 @@ void print_bits(uint8_t *data, int len)
 }
 
 /*---------------------------------
-PADDING
+ PADDING
 ----------------------------------*/
 void add_padding(uint8_t *buffer, int *offset, int remaining)
 {
@@ -663,8 +601,8 @@ int get_ce_id(char *type)
 }
 
 /*----------------------------------
- PARSE AND ENCODE FUNCTION
-----------------------------------
+ PARSE AND ENCODE LOGIC
+
  Responsibilities:
  1. Reads input file
  2. Extracts total PDU size
@@ -675,6 +613,11 @@ int get_ce_id(char *type)
  7. Adds padding to match PDU size
  8. Prints final MAC buffer
 --------------------------------------*/
+
+/*==================================
+    PARSING UTILITIES
+==================================*/
+
 static int parse_strict_non_negative_int(const char *s, int *out)
 {
     int i = 0;
@@ -725,7 +668,7 @@ static int read_required_int(FILE *fp, char *line, int *out, const char *name)
         return FAILURE;
     }
 
-    if (parse_integer(line, out) == FAILURE)
+    if (parse_integer(eq, out) == FAILURE)
     {
         printf("ERROR: value of %s must be integer only\n", name);
         return FAILURE;
@@ -753,7 +696,7 @@ static int read_block_int(char *line, int *out, const char *name)
         return FAILURE;
     }
 
-    if (parse_integer(line, out) == FAILURE)
+    if (parse_integer(eq, out) == FAILURE)
     {
         printf("ERROR: value of %s must be integer only\n", name);
         return FAILURE;
@@ -774,15 +717,21 @@ static int ensure_space(int offset, int needed, int total_size)
 
 static int is_blank_line(const char *line)
 {
-    int i = 0;
-    while (line[i] != '\0')
+    if (line == NULL)
+        return 1;
+
+    while (*line)
     {
-        if (line[i] != ' ' && line[i] != '\t' && line[i] != '\n' && line[i] != '\r')
+        if (!isspace((unsigned char)*line))
             return 0;
-        i++;
+        line++;
     }
+
     return 1;
 }
+/*----------------------------------
+ PARSE AND ENCODE FUNCTION
+----------------------------------*/
 
 int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
 
@@ -824,34 +773,65 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
         fclose(fp);
         return FAILURE;
     }
+    char *eq = strchr(line, '=');
+    if (eq == NULL)
+    {
+        printf("ERROR: Invalid Total pdu_size format\n");
+        fclose(fp);
+        return FAILURE;
+    }
 
-    char *p = strstr(line, "Total pdu_size");
-    if (!p || parse_strict_non_negative_int(p + strlen("Total pdu_size"), pdu_size) == FAILURE || *pdu_size < 0)
+    eq++;
+    while (*eq == ' ' || *eq == '\t')
+        eq++;
+
+    if (parse_strict_non_negative_int(eq, pdu_size) == FAILURE)
     {
         printf("ERROR: Invalid PDU size (integer only)\n");
         fclose(fp);
         return FAILURE;
     }
 
+    if (*pdu_size < 0)
+    {
+        printf("ERROR: PDU size cannot be negative\n");
+        fclose(fp);
+        return FAILURE;
+    }
     printf(" TOTAL PDU SIZE : %d\n", *pdu_size);
-    // Read number of CEs
+
     if (fgets(line, sizeof(line), fp) == NULL)
     {
         printf("ERROR: Missing num_ce line\n");
         fclose(fp);
         return FAILURE;
     }
-
     state.ce_count = 0;
-
-    p = strstr(line, "num_ce");
-    if (!p || parse_strict_non_negative_int(p + strlen("num_ce"), &state.num_ce) == FAILURE || state.num_ce <= 0)
+    eq = strchr(line, '=');
+    if (eq == NULL)
     {
-        printf("ERROR: Invalid num_ce (positive integer only)\n");
+        printf("ERROR: Invalid num_ce format\n");
         fclose(fp);
         return FAILURE;
     }
 
+    eq++;
+    while (*eq == ' ' || *eq == '\t')
+        eq++;
+
+    if (parse_strict_non_negative_int(eq, &state.num_ce) == FAILURE)
+    {
+        printf("ERROR: Invalid num_ce (integer only)\n");
+        fclose(fp);
+        return FAILURE;
+    }
+
+    if (state.num_ce <= 0)
+    {
+        printf("ERROR: num_ce must be positive\n");
+        fclose(fp);
+        return FAILURE;
+    }
     printf("NUMBER OF CE : %d\n\n", state.num_ce);
     int blank_count = 0;
     // Reset blank_count before processing CEs for clarity
