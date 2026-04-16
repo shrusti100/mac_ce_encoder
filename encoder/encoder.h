@@ -44,5 +44,4 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size);
 void print_hex(uint8_t *data, int len);
 void print_bits(uint8_t *data, int len);
 void add_padding(uint8_t *buffer, int *offset, int remaining);
-
 #endif
