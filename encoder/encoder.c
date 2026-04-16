@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "input_validation.h"
+#include "../validation/input_validation.h"
 #include "encoder.h"
 #define PDU_OVERFLOW -2
 
@@ -38,50 +38,27 @@ int check_pdu_space(int offset, int required, int pdu_size)
 int short_bsr(uint8_t *pdu, int *offset, int argc, int lcgid, int buffer, int pdu_size)
 {
     // -------- PARAM COUNT CHECK --------
-    if (argc == 0)
+    if (argc != 2) 
     {
-        printf("ERROR: short_bsr missing parameters (LCGID BUFFER)\n");
+    	if (argc > 2) printf("ERROR: short_bsr extra parameters detected\n");
+    	else if (argc == 0) printf("ERROR: short_bsr missing parameters (LCGID BUFFER)\n");
+    	else printf(lcgid == -1 ? "ERROR: LCGID not provided\n" : "ERROR: BUFFER not provided\n");
+    	return FAILURE;
+    }
+    // -------- NEGATIVE CHECK AND RANGE CHECK (BIT LIMITS) --------
+    if (lcgid < 0 || lcgid > 7)
+    {
+        printf(lcgid < 0 ? 
+                "ERROR: LCGID cannot be negative\n" : 
+                "ERROR: LCGID out of range (0-7)\n");
         return FAILURE;
     }
 
-    if (argc == 1)
+    if (buffer < 0 || buffer > 31)
     {
-        if (lcgid == -1)
-            printf("ERROR: LCGID not provided\n");
-        else
-            printf("ERROR: BUFFER not provided\n");
-        return FAILURE;
-    }
-
-    if (argc > 2)
-    {
-        printf("ERROR: short_bsr extra parameters detected\n");
-        return FAILURE;
-    }
-
-    // -------- NEGATIVE CHECK --------
-    if (lcgid < 0)
-    {
-        printf("ERROR: LCGID cannot be negative\n");
-        return FAILURE;
-    }
-
-    if (buffer < 0)
-    {
-        printf("ERROR: BUFFER cannot be negative\n");
-        return FAILURE;
-    }
-
-    // -------- RANGE CHECK (BIT LIMITS) --------
-    if (lcgid > 7)
-    {
-        printf("ERROR: LCGID out of range (0-7)\n");
-        return FAILURE;
-    }
-
-    if (buffer > 31)
-    {
-        printf("ERROR: BUFFER out of range (0-31)\n");
+        printf(buffer < 0 ? 
+                "ERROR: BUFFER cannot be negative\n" : 
+                "ERROR: BUFFER out of range (0-31)\n");
         return FAILURE;
     }
     int space = check_pdu_space(*offset, 2, pdu_size);
@@ -95,51 +72,39 @@ int short_bsr(uint8_t *pdu, int *offset, int argc, int lcgid, int buffer, int pd
 }
 
 /**********************************************************
- function:phr
-***********************************************************
-* Brief: MAC subPDU with: 8-bit MAC subheader
-* Subheader:R(2 BITS) LCID(6 BITS)
-* Format:Octet 1 -> P (1 BIT) R(1 BIT) PH (6 BITS)
-*        Octet 2 -> R (2 BITS)  PCMACX (6 BITS)
-*        Total MAC CE (3 BYTES)
-************************************************************/
+function:phr
+ ***********************************************************
+ * Brief: MAC subPDU with: 8-bit MAC subheader
+ * Subheader:R(2 BITS) LCID(6 BITS)
+ * Format:Octet 1 -> P (1 BIT) R(1 BIT) PH (6 BITS)
+ *        Octet 2 -> R (2 BITS)  PCMACX (6 BITS)
+ *        Total MAC CE (3 BYTES)
+ ************************************************************/
 int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags, int pdu_size)
 {
-    if (argc == 0)
+    if (argc != 2)
     {
-        printf("ERROR: Both parameters missing\n");
+        printf(argc == 0 ?
+                "ERROR: Both parameters missing\n" :
+                "ERROR: phr extra parameters detected\n");
         return FAILURE;
     }
 
-    if (argc > 2)
+    if (ph == -1 || pcmax == -1)
     {
-        printf("ERROR: phr extra parameters detected\n");
-        return FAILURE;
-    }
-    if (ph == -1)
-    {
-        printf("ERROR: Missing parameter PH\n");
+        printf(ph == -1 ?
+                "ERROR: Missing parameter PH\n" :
+                "ERROR: Missing parameter Pcmax\n");
         return FAILURE;
     }
 
-    if (pcmax == -1)
+    if (ph < 0 || pcmax < 0)
     {
-        printf("ERROR: Missing parameter Pcmax\n");
+        printf(ph < 0 ?
+                "ERROR: PH cannot be negative\n" :
+                "ERROR: PCMAX cannot be negative\n");
         return FAILURE;
     }
-    // -------- NEGATIVE CHECK --------
-    if (ph < 0)
-    {
-        printf("ERROR: PH cannot be negative\n");
-        return FAILURE;
-    }
-
-    if (pcmax < 0)
-    {
-        printf("ERROR: PCMAX cannot be negative\n");
-        return FAILURE;
-    }
-
     if (check_range(ph, 0, 63, "PH"))
         return FAILURE;
     if (check_range(pcmax, 0, 63, "PCMAX"))
