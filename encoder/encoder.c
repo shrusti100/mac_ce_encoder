@@ -2,11 +2,13 @@
 #include <string.h>
 #include <stdint.h>
 #include <limits.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include "input_validation.h"
 #include "encoder.h"
 
 #define MAX_LINE 100
+static int ensure_space(int offset, int needed, int total_size);
 
 /*----------------------------------
  VALIDATION
@@ -28,8 +30,10 @@ int check_range(int val, int min, int max, const char *name)
  * Format: LCG ID (3 BITS) Buffer Size (5 BITS)
  * Total MAC CE (2 BYTES)
  ***************************************************/
-int short_bsr(uint8_t *pdu, int *offset, int argc, uint8_t lcg, uint8_t buffer)
+int short_bsr(uint8_t *pdu, int *offset, int argc, int lcg, int buffer, int total_pdu_size)
+
 {
+
     if (pdu == NULL || offset == NULL)
     {
         printf("ERROR: null pdu/offset\n");
@@ -52,12 +56,15 @@ int short_bsr(uint8_t *pdu, int *offset, int argc, uint8_t lcg, uint8_t buffer)
     if (check_range(buffer, 0, 31, "BUFFER"))
         return FAILURE;
 
+    if (ensure_space(*offset, 2, total_pdu_size) == FAILURE)
+        return FAILURE;
+
     /*Octet:
      Bits [7:5] → LCG ID
      Bits [4:0] → Buffer Size*/
 
     pdu[(*offset)++] = LCID_SHORT_BSR;
-    pdu[(*offset)++] = ((lcg & 0x07) << 5) | (buffer & 0x1F);
+    pdu[(*offset)++] = (uint8_t)(((lcg & 0x07) << 5) | (buffer & 0x1F));
 
     return SUCCESS;
 }
@@ -69,8 +76,9 @@ int short_bsr(uint8_t *pdu, int *offset, int argc, uint8_t lcg, uint8_t buffer)
  * Format: PH (6 BITS) PCMAX (2 BITS) + Flags
  * Total MAC CE: Variable
  ***************************************************/
-int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags)
+int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags, int total_pdu_size)
 {
+
     if (pdu == NULL || offset == NULL)
     {
         printf("ERROR: null pdu/offset\n");
@@ -120,7 +128,11 @@ int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags)
 
     if (check_range(ph, 0, 63, "PH"))
         return FAILURE;
+
     if (check_range(pcmax, 0, 63, "PCMAX"))
+        return FAILURE;
+
+    if (ensure_space(*offset, 3, total_pdu_size) == FAILURE)
         return FAILURE;
 
     pdu[(*offset)++] = LCID_PHR;
@@ -136,8 +148,9 @@ int phr(uint8_t *pdu, int *offset, int argc, int ph, int pcmax, Flags flags)
  * Format: C-RNTI (16 BITS)
  * Total MAC CE (3 BYTES)
  ***************************************************/
-int crnti(uint8_t *pdu, int *offset, int argc, int value)
+int crnti(uint8_t *pdu, int *offset, int argc, int value, int total_pdu_size)
 {
+
     if (pdu == NULL || offset == NULL)
     {
         printf("ERROR: null pdu/offset\n");
@@ -173,10 +186,13 @@ int crnti(uint8_t *pdu, int *offset, int argc, int value)
         return FAILURE;
     }
 
+    if (ensure_space(*offset, 3, total_pdu_size) == FAILURE)
+        return FAILURE;
+
     // ENCODING
     pdu[(*offset)++] = LCID_CRNTI;
-    pdu[(*offset)++] = (value >> 8) & 0xFF;
-    pdu[(*offset)++] = value & 0xFF;
+    pdu[(*offset)++] = (uint8_t)((value >> 8) & 0xFF);
+    pdu[(*offset)++] = (uint8_t)(value & 0xFF);
     return SUCCESS;
 }
 
@@ -187,13 +203,14 @@ int crnti(uint8_t *pdu, int *offset, int argc, int value)
  * Format: Delay parameters
  * Total MAC CE: Variable
  ***************************************************/
-int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
+int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags, int total_pdu_size)
 {
     if (pdu == NULL || offset == NULL)
     {
         printf("ERROR: null pdu/offset\n");
         return FAILURE;
     }
+
     if (argc < 3)
     {
         printf("ERROR: dsr missing parameters (LCG RT BUFFER)\n");
@@ -207,36 +224,45 @@ int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
     }
 
     int entries = argc / 3;
+
+    int needed = 2 + 1 + (2 * entries);
+    if (ensure_space(*offset, needed, total_pdu_size) == FAILURE)
+        return FAILURE;
+
     uint8_t lcg_bitmap = 0;
+
+    // -------- BUILD BITMAP --------
     for (int i = 0; i < entries; i++)
     {
-        uint8_t lcg = params[i * 3];
+        int lcg = params[i * 3];
 
         if (check_range(lcg, 0, 7, "LCG"))
             return FAILURE;
 
-        lcg_bitmap |= (1 << lcg);
+        lcg_bitmap |= (uint8_t)(1U << lcg);
     }
 
     // -------- ENCODING --------
     pdu[(*offset)++] = LCID_ONE_OCTET_ELCID;
     pdu[(*offset)++] = ELCID_DSR;
-
     pdu[(*offset)++] = lcg_bitmap;
+
+    // -------- ENCODE EACH ENTRY --------
     for (int i = 0; i < entries; i++)
     {
-        uint8_t lcg = params[i * 3];
-        uint8_t rt = params[i * 3 + 1];
-        uint8_t buffer = params[i * 3 + 2];
+        int rt = params[i * 3 + 1];
+        int buffer = params[i * 3 + 2];
 
         if (check_range(rt, 0, 63, "RT"))
             return FAILURE;
+
         if (check_range(buffer, 0, 255, "BUFFER"))
             return FAILURE;
 
-        pdu[(*offset)++] = (flags.BT << 7) | (flags.R << 6) | (rt & 0x3F);
-        pdu[(*offset)++] = buffer;
+        pdu[(*offset)++] = (uint8_t)((flags.BT << 7) | (flags.R << 6) | (rt & 0x3F));
+        pdu[(*offset)++] = (uint8_t)buffer;
     }
+
     return SUCCESS;
 }
 
@@ -247,8 +273,9 @@ int dsr(uint8_t *pdu, int *offset, int argc, int *params, Flags flags)
  * Format: Bit rate fields + Flags
  * Total MAC CE: Variable
  ***************************************************/
-int rec_bit_rate(uint8_t *pdu, int *offset, int argc, int lcid, int rate, int ul_dl, Flags flags)
+int rec_bit_rate(uint8_t *pdu, int *offset, int argc, int lcid, int rate, int ul_dl, Flags flags, int total_pdu_size)
 {
+
     if (pdu == NULL || offset == NULL)
     {
         printf("ERROR: null pdu/offset\n");
@@ -299,13 +326,14 @@ int rec_bit_rate(uint8_t *pdu, int *offset, int argc, int lcid, int rate, int ul
         return FAILURE;
     if (check_range(ul_dl, 0, 1, "UL/DL"))
         return FAILURE;
+    if (ensure_space(*offset, 3, total_pdu_size) == FAILURE)
+        return FAILURE;
 
     // -------- ENCODING --------
 
     pdu[(*offset)++] = LCID_REC_BIT_RATE;
-    pdu[(*offset)++] = (lcid << 2) | (ul_dl << 1) | flags.R;
-    pdu[(*offset)++] = (rate << 2) | (flags.X << 1) | flags.R2;
-
+    pdu[(*offset)++] = (uint8_t)((lcid << 2) | (ul_dl << 1) | flags.R);
+    pdu[(*offset)++] = (uint8_t)((rate << 2) | (flags.X << 1) | flags.R2);
     return SUCCESS;
 }
 
@@ -318,7 +346,8 @@ int rec_bit_rate(uint8_t *pdu, int *offset, int argc, int lcid, int rate, int ul
  ***************************************************/
 /* NOTE: verify payload layout against the exact Rel-18 STx2P PHR figure/table before final use */
 
-int enhanced_single_entry_phr_multiple_trp_stx2p(uint8_t *pdu, int *offset, int argc, int *params)
+int enhanced_single_entry_phr_multiple_trp_stx2p(uint8_t *pdu, int *offset, int argc, int *params, int total_pdu_size)
+
 {
     if (pdu == NULL || offset == NULL)
     {
@@ -338,6 +367,9 @@ int enhanced_single_entry_phr_multiple_trp_stx2p(uint8_t *pdu, int *offset, int 
     }
 
     int entries = argc / 2;
+    int needed = 2 + (2 * entries);
+    if (ensure_space(*offset, needed, total_pdu_size) == FAILURE)
+        return FAILURE;
 
     // -------- ENCODING --------
 
@@ -383,7 +415,8 @@ int enhanced_single_entry_phr_multiple_trp_stx2p(uint8_t *pdu, int *offset, int 
  * Format: LBT parameters
  * Total MAC CE: Variable
  ***************************************************/
-int sl_lbt(uint8_t *pdu, int *offset, int value)
+int sl_lbt(uint8_t *pdu, int *offset, int value, int total_pdu_size)
+
 {
     if (pdu == NULL || offset == NULL)
     {
@@ -402,6 +435,9 @@ int sl_lbt(uint8_t *pdu, int *offset, int value)
     }
     if (check_range(value, 0, 31, "SL-LBT"))
         return FAILURE;
+    if (ensure_space(*offset, 3, total_pdu_size) == FAILURE)
+        return FAILURE;
+
     pdu[(*offset)++] = LCID_ONE_OCTET_ELCID;
     pdu[(*offset)++] = ELCID_SL_LBT;
 
@@ -417,7 +453,7 @@ int sl_lbt(uint8_t *pdu, int *offset, int value)
  * Format: BFR parameters
  * Total MAC CE: Variable
  ***************************************************/
-int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
+int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params, int total_pdu_size)
 {
     if (pdu == NULL || offset == NULL)
     {
@@ -437,6 +473,9 @@ int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
     }
 
     int entries = (argc - 2) / 3;
+    int needed = 4 + entries;
+    if (ensure_space(*offset, needed, total_pdu_size) == FAILURE)
+        return FAILURE;
 
     int ci = params[0];
     int s = params[1];
@@ -456,8 +495,8 @@ int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
     pdu[(*offset)++] = ELCID_ENH_BFR;
 
     // CI & S
-    pdu[(*offset)++] = ci;
-    pdu[(*offset)++] = s;
+    pdu[(*offset)++] = (uint8_t)ci;
+    pdu[(*offset)++] = (uint8_t)s;
 
     for (int i = 0; i < entries; i++)
     {
@@ -478,7 +517,7 @@ int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
         if (check_range(cid, 0, 63, "Candidate ID"))
             return FAILURE;
 
-        pdu[(*offset)++] = (ac << 7) | (id << 6) | (cid & 0x3F);
+        pdu[(*offset)++] = (uint8_t)((ac << 7) | (id << 6) | (cid & 0x3F));
     }
 
     return SUCCESS;
@@ -491,8 +530,10 @@ int enhanced_bfr(uint8_t *pdu, int *offset, int argc, int *params)
  * Format: LCG ID + Buffer size
  * Total MAC CE: Variable
  ***************************************************/
-int extended_short_truncated_bsr(uint8_t *pdu, int *offset, uint8_t lcg, uint8_t buffer)
+int extended_short_truncated_bsr(uint8_t *pdu, int *offset, int lcg, int buffer, int total_pdu_size)
+
 {
+
     if (pdu == NULL || offset == NULL)
     {
         printf("ERROR: null pdu/offset\n");
@@ -508,12 +549,14 @@ int extended_short_truncated_bsr(uint8_t *pdu, int *offset, uint8_t lcg, uint8_t
         return FAILURE;
     if (check_range(buffer, 0, 255, "BUFFER"))
         return FAILURE;
+    if (ensure_space(*offset, 4, total_pdu_size) == FAILURE)
+        return FAILURE;
 
     pdu[(*offset)++] = LCID_ONE_OCTET_ELCID;
     pdu[(*offset)++] = ELCID_EXTENDED_SHORT_TRUNCATED_BSR;
 
-    pdu[(*offset)++] = lcg & 0x07;
-    pdu[(*offset)++] = buffer & 0xFF;
+    pdu[(*offset)++] = (uint8_t)(lcg & 0x07);
+    pdu[(*offset)++] = (uint8_t)(buffer & 0xFF);
 
     return SUCCESS;
 }
@@ -639,17 +682,30 @@ static int read_required_int(FILE *fp, char *line, int *out, const char *name)
     while (*eq == ' ' || *eq == '\t')
         eq++;
 
-    if (*eq == '\0' || *eq == '\n')
+    char *end = eq + strlen(eq);
+    while (end > eq && isspace((unsigned char)end[-1]))
+        end--;
+    *end = '\0';
+
+    if (*eq == '\0')
     {
         printf("ERROR: value of %s is missing\n", name);
         return FAILURE;
     }
 
-    if (parse_integer(eq, out) == FAILURE)
+    char *endptr = NULL;
+    long v = strtol(eq, &endptr, 10);
+
+    while (endptr && isspace((unsigned char)*endptr))
+        endptr++;
+
+    if (eq == endptr || (endptr && *endptr != '\0') || v < 0 || v > INT_MAX)
     {
         printf("ERROR: value of %s must be integer only\n", name);
         return FAILURE;
     }
+
+    *out = (int)v;
 
     return SUCCESS;
 }
@@ -667,17 +723,30 @@ static int read_block_int(char *line, int *out, const char *name)
     while (*eq == ' ' || *eq == '\t')
         eq++;
 
-    if (*eq == '\0' || *eq == '\n')
+    char *end = eq + strlen(eq);
+    while (end > eq && isspace((unsigned char)end[-1]))
+        end--;
+    *end = '\0';
+
+    if (*eq == '\0')
     {
         printf("ERROR: value of %s is missing\n", name);
         return FAILURE;
     }
 
-    if (parse_integer(eq, out) == FAILURE)
+    char *endptr = NULL;
+    long v = strtol(eq, &endptr, 10);
+
+    while (endptr && isspace((unsigned char)*endptr))
+        endptr++;
+
+    if (eq == endptr || (endptr && *endptr != '\0') || v < 0 || v > INT_MAX)
     {
         printf("ERROR: value of %s must be integer only\n", name);
         return FAILURE;
     }
+
+    *out = (int)v;
 
     return SUCCESS;
 }
@@ -710,15 +779,15 @@ static int is_blank_line(const char *line)
  PARSE AND ENCODE FUNCTION
 ----------------------------------*/
 
-int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
+int parse_and_encode(const char *filename, uint8_t *pdu, int *total_pdu_size)
 
 {
     int offset = 0;
     printf("STRICT_BUILD_ACTIVE\n");
 
-    if (pdu == NULL || pdu_size == NULL)
+    if (pdu == NULL || total_pdu_size == NULL)
     {
-        printf("ERROR: null output buffer/pdu_size\n");
+        printf("ERROR: null output buffer/total_pdu_size\n");
         return FAILURE;
     }
 
@@ -762,20 +831,20 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
     while (*eq == ' ' || *eq == '\t')
         eq++;
 
-    if (parse_strict_non_negative_int(eq, pdu_size) == FAILURE)
+    if (parse_strict_non_negative_int(eq, total_pdu_size) == FAILURE)
     {
         printf("ERROR: Invalid PDU size (integer only)\n");
         fclose(fp);
         return FAILURE;
     }
 
-    if (*pdu_size < 0)
+    if (*total_pdu_size < 0)
     {
         printf("ERROR: PDU size cannot be negative\n");
         fclose(fp);
         return FAILURE;
     }
-    printf(" TOTAL PDU SIZE : %d\n", *pdu_size);
+    printf(" TOTAL PDU SIZE : %d\n", *total_pdu_size);
 
     if (fgets(line, sizeof(line), fp) == NULL)
     {
@@ -892,13 +961,8 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 2, *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
+                ret = short_bsr(pdu, &offset, param_count, a, b, *total_pdu_size);
 
-                ret = short_bsr(pdu, &offset, param_count, a, b);
                 break;
             }
 
@@ -916,13 +980,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 3, *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
-
-                ret = phr(pdu, &offset, 2, a, b, flags);
+                ret = phr(pdu, &offset, 2, a, b, flags, *total_pdu_size);
                 break;
             }
 
@@ -934,13 +992,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 3, *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
-
-                ret = crnti(pdu, &offset, 1, a);
+                ret = crnti(pdu, &offset, 1, a, *total_pdu_size);
                 break;
             }
 
@@ -966,13 +1018,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 3, *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
-
-                ret = rec_bit_rate(pdu, &offset, param_count, a, b, c, flags);
+                ret = rec_bit_rate(pdu, &offset, param_count, a, b, c, flags, *total_pdu_size);
                 break;
             }
 
@@ -985,7 +1031,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                 {
                     if (strchr(line, '<') != NULL)
                     {
-                        fseek(fp, -strlen(line), SEEK_CUR);
+                        fseek(fp, -(long)strlen(line), SEEK_CUR);
                         break;
                     }
 
@@ -1015,13 +1061,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 2 + 1 + 2 * (count / 3), *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
-
-                ret = dsr(pdu, &offset, count, params, flags);
+                ret = dsr(pdu, &offset, count, params, flags, *total_pdu_size);
                 break;
             }
 
@@ -1033,7 +1073,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                 {
                     if (strchr(line, '<') != NULL)
                     {
-                        fseek(fp, -strlen(line), SEEK_CUR);
+                        fseek(fp, -(long)strlen(line), SEEK_CUR);
                         break;
                     }
                     if (is_blank_line(line))
@@ -1061,13 +1101,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 2 + 2 * (count / 2), *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
-
-                ret = enhanced_single_entry_phr_multiple_trp_stx2p(pdu, &offset, count, params);
+                ret = enhanced_single_entry_phr_multiple_trp_stx2p(pdu, &offset, count, params, *total_pdu_size);
                 break;
             }
 
@@ -1079,13 +1113,8 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 3, *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
+                ret = sl_lbt(pdu, &offset, a, *total_pdu_size);
 
-                ret = sl_lbt(pdu, &offset, a);
                 break;
             }
 
@@ -1098,7 +1127,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                 {
                     if (strchr(line, '<') != NULL)
                     {
-                        fseek(fp, -strlen(line), SEEK_CUR);
+                        fseek(fp, -(long)strlen(line), SEEK_CUR);
                         break;
                     }
                     if (is_blank_line(line))
@@ -1126,13 +1155,8 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 2 + 2 + ((count - 2) / 3), *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
+                ret = enhanced_bfr(pdu, &offset, count, params, *total_pdu_size);
 
-                ret = enhanced_bfr(pdu, &offset, count, params);
                 break;
             }
 
@@ -1149,13 +1173,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
                     return FAILURE;
                 }
 
-                if (ensure_space(offset, 4, *pdu_size) == FAILURE)
-                {
-                    fclose(fp);
-                    return FAILURE;
-                }
-
-                ret = extended_short_truncated_bsr(pdu, &offset, a, b);
+                ret = extended_short_truncated_bsr(pdu, &offset, a, b, *total_pdu_size);
                 break;
             }
             default:
@@ -1205,10 +1223,10 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
     }
 
     int total_used_before = offset;
-    int remaining = *pdu_size - offset;
+    int remaining = *total_pdu_size - offset;
 
     printf("\n===== FINAL SUMMARY =====\n");
-    printf("Total PDU Size   : %d bytes\n", *pdu_size);
+    printf("Total PDU Size   : %d bytes\n", *total_pdu_size);
     printf("Total Used Bytes : %d bytes\n", total_used_before);
     printf("Remaining Bytes  : %d bytes\n", remaining);
 
@@ -1223,7 +1241,7 @@ int parse_and_encode(const char *filename, uint8_t *pdu, int *pdu_size)
 
     printf("\nRemaining bytes filled with 00.\n");
     printf("\nFinal MAC Buffer:\n");
-    print_hex(pdu, *pdu_size);
+    print_hex(pdu, *total_pdu_size);
     printf("\n");
 
     fclose(fp);
