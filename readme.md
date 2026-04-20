@@ -28,35 +28,38 @@ g++ tests/test.cpp encoder.o input_validation.o googletest/googletest/src/gtest-
 ```
 
 ## The input file:
-1. Global Parameters
+### 1. Global Parameters
 These must appear at the top of the file:
 
 Total pdu_size <value>
 num_ce <value>
 Parameters
 
-2. Control Element Blocks
+### 2. Control Element Blocks
 Each Control Element must follow this structure:
 
 <ce_name>
 parameter=value
 parameter=value
 
-3. Supported Control Elements
-
+### 3. Supported Control Elements
+### Short_bsr
 <short_bsr>
 lcgid=value
 buffer=value
 
+### phr
 <phr>
 ph=value
 pcmax=value
 
+### enhanced_phr
 <enhanced_phr>
 ph1=value
 ph2=value
 pcmax=value
 
+### enhanced_bfr
 <enhanced_bfr>
 ci=value
 s=value
@@ -64,21 +67,26 @@ ac=value
 id=value
 candidate_id=value
 
+### crnti
 <crnti>
 value=value
 
+### rec_bit_rate
 <rec_bit_rate>
 lcid=value
 bit_rate=value
 ui_dl=0 or 1
 
+### extended_bsr
 <extended_bsr>
 lcg=value
 buffer=value
 
+### sl_lbt
 <sl_lbt>
 value=value
 
+### dsr
 <dsr>
 lcg=value
 rt=value
@@ -115,7 +123,7 @@ Final MAC Buffer:
 ```
 
 ## Parsing Rules
-Control Elements must start with `< >`
-Parameters must use key=value format
-Parameter order must match expected format
-Only supported CE types are allowed
+- Control Elements must start with `< >`
+- Parameters must use key=value format
+- Parameter order must match expected format
+- Only supported CE types are allowed
