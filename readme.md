@@ -30,84 +30,96 @@ g++ tests/test.cpp encoder.o input_validation.o googletest/googletest/src/gtest-
 ## The input file:
 ### 1. Global Parameters
 These must appear at the top of the file:
----
+```txt
 Total pdu_size <value>
 num_ce <value>
 Parameters
+```
 
 ### 2. Control Element Blocks
 Each Control Element must follow this structure:
----
+```txt
 <ce_name>
 parameter=value
 parameter=value
+```
 
 ### 3. Supported Control Elements
---- 
 ### Short_bsr
+```txt
 <short_bsr>
-lcgid=value
+cgid=value
 buffer=value
+```
 
----
 ### phr
+```txt
 <phr>
 ph=value
 pcmax=value
+```
 
----
 ### enhanced_phr
+```txt
 <enhanced_phr>
 ph1=value
 ph2=value
 pcmax=value
+```
 
----
 ### enhanced_bfr
+```txt
 <enhanced_bfr>
 ci=value
 s=value
 ac=value
 id=value
 candidate_id=value
+```
 
----
 ### crnti
+```txt
 <crnti>
 value=value
+```
 
----
 ### rec_bit_rate
+```txt
 <rec_bit_rate>
 lcid=value
 bit_rate=value
 ui_dl=0 or 1
+```
 
----
 ### extended_bsr
+```txt
 <extended_bsr>
 lcg=value
 buffer=value
+```
 
----
 ### sl_lbt
+```txt
 <sl_lbt>
 value=value
+```
 
----
 ### dsr
+```txt
 <dsr>
 lcg=value
 rt=value
 buffer=value
+```
 
----
 ### Example Input
+```txt
 Total pdu_size 6
 num_ce 1
 <short_bsr>
 lcgid=2
 buffer=23
+```
 
 ### Output
 ```bash
